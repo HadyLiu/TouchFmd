@@ -1,0 +1,56 @@
+---
+# 基础语言与标准定义
+Language: Cpp
+Standard: Cpp11 # 或 Cpp14/Cpp17，根据项目实际情况调整
+
+# --- 1. 排版格式与大括号流 (Allman 风格) ---
+# 缩进宽度为 4 个空格
+IndentWidth: 4
+# Tab 宽度为 4 个空格
+TabWidth: 4
+# 禁止使用 Tab 键，完全使用空格对齐
+UseTab: Never
+# 单行最大字符数限制为 100 字符
+ColumnLimit: 120
+
+# 大括号换行风格：完全自定义以实现严格的 Allman 风格
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterControlStatement: true
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: false # 嵌入式规范通常不缩进名空间，保持 false 可避免过多无谓缩进
+  AfterStruct: true
+  AfterUnion: true
+  BeforeCatch: true
+  BeforeElse: true
+  IndentBraces: false
+  SplitEmptyFunction: true # 强制拆分空函数大括号，绝不折叠，确保 Allman 风格一致性
+
+# 严格禁止任何单行折叠，确保代码结构清晰
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# --- 2. 寄存器安全与对齐 ---
+# 连续赋值时对齐等号，极度利好底层寄存器连续配置场景
+AlignConsecutiveAssignments: true
+# 连续声明时对齐变量名（可选，建议开启，保持硬件初始化代码整洁）
+AlignConsecutiveDeclarations: true
+
+# --- 3. 命名规范与接口隔离 (指针/引用对齐) ---
+# 指针和引用的对齐靠近类型 (Left 风格，如: uint8_t* pReg;)
+PointerAlignment: Left
+DerivePointerAlignment: false # 禁用自动推导，强制执行 Left 对齐
+
+# --- 4. 包含头文件管理 ---
+# 允许排序 #include，有助于在编译期暴露头文件隐式耦合问题
+SortIncludes: true
+
+# --- 5. 其他细节微调 ---
+# 在 C++ 初始化列表的冒号前换行
+BreakConstructorInitializers: BeforeColon
+# 命名空间后的注释提示（如 // namespace OS）
+FixNamespaceComments: true

@@ -1,0 +1,15 @@
+*.d
+*.p1
+*.pre
+*.lst
+*.rlf
+*.sdb
+*.sym
+*.obj
+*.cmf
+*.map
+*.lpp
+*.cof
+*.hxl
+*.asm
+*.bin
