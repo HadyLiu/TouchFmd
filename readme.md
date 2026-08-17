@@ -36,6 +36,7 @@ TouchFmd/
 ├── qTouchIO_FT61EC2x/     # GPIO QTouch，FT61EC2x 两路
 ├── qTouchADC_FT61EC2x/    # ADC QTouch，FT61EC2x 两路
 ├── mTouchADC_FT61EC2x/    # 两路 ADC CVD，FT61EC2x
+├── Doc/touchDeg.port      # JCom 协议：解析 TouchDeg 二进制帧
 ├── clearVxx.bat           # 清理 IDE 中间文件
 └── LICENSE
 ```
@@ -52,6 +53,7 @@ TouchFmd/
 | `touchdeg_main.c` | 调试入口：PA2 软串口约 9600 上报 |
 | `soft_uart.c/h` | TouchDeg 软串口（无库除法打数字） |
 | `main.prj` / `TouchDeg.prj` | FMD IDE 工程 |
+| [`Doc/touchDeg.port`](Doc/touchDeg.port) | JCom 接收协议（CH0/CH1 帧） |
 
 ---
 
@@ -64,7 +66,7 @@ SNS + SMP + 外接 Cs。手指靠近 → Cx 变大 → 每次转移电荷更多 
 ```text
   [铜箔 Cx]──[Rs ≈ 1 kΩ]──┬── GPIO SNS
                           │
-                         Cs ≈ 22 nF NPO/C0G
+                         Cs ≈ 6.2 nF NPO/C0G
                           │
                           └── GPIO SMP
 ```
@@ -197,9 +199,27 @@ CH0 按下 → PA7 低；CH1 按下 → PA6 低。
 
 ---
 
-## 调试（TouchDeg）
+## 调试（TouchDeg + JCom）
 
-`TouchDeg.prj`，PA2，约 9600 8N1。每个通道单独一帧（12 字节）：
+各方案打开 **`TouchDeg.prj`** 下载。MCU **PA2** 软串口 **9600 8N1**，采完一路立刻发该路一帧。  
+mTouch 的 `MT_LP_ENABLE` 在 TouchDeg 里不要开。
+
+### 接线与串口
+
+| 项 | 值 |
+|----|----|
+| TX | PA2 → USB 转串口 RX |
+| GND | 与转接板共地 |
+| 波特率 | 9600 |
+| 数据位 | 8 |
+| 校验 | 无 |
+| 停止位 | 1 |
+
+波特率不对时改 `QT_DBG_BAUD_10US` / `MT_DBG_BAUD_10US`（偏快减小，偏慢加大）。
+
+### 帧格式（固件与 `.port` 一致）
+
+每通道 12 字节，小端。CH0、CH1 交替出现：
 
 ```text
 55 | ch | S_L S_H  B_L B_H  D_L D_H  N  P | AA
@@ -210,18 +230,44 @@ CH0 按下 → PA7 低；CH1 按下 → PA6 低。
 55  01  S1l S1h  B1l B1h  D1l D1h  N1  P1  AA   ← CH1（PA6）
 ```
 
-| 字段 | 长度 | 含义 |
-|------|------|------|
-| `55` / `AA` | 1 | 起始 / 结束 |
-| `ch` | 1 | 通道号，0=CH0，1=CH1 |
-| `S` | 2 小端 | 该路滤波后信号，触摸后下降 |
-| `B` | 2 小端 | 该路动态基线 |
-| `D` | 2 小端 | 该路 `max(B − S, 0)` |
-| `N` | 1 | 该路噪声底 |
-| `P` | 1 | 该路是否按下 |
+| 字段 | 长度 | 含义 | JCom 名称 |
+|------|------|------|-----------|
+| `55` | 1 | 帧头 | （隐藏） |
+| `ch` | 1 | 0=CH0，1=CH1 | （匹配包） |
+| `S` | 2 小端 | 当前值，触摸后下降 | 当前值 |
+| `B` | 2 小端 | 动态基线 | 基线 |
+| `D` | 2 小端 | `max(B − S, 0)` | 差量 |
+| `N` | 1 | 噪声底 | 噪声 |
+| `P` | 1 | 0 松开 / 1 按下 | 按下 |
+| `AA` | 1 | 帧尾 | （隐藏） |
 
-空闲该路 `S≈B`、`D` 很小；按下该路 `D` 变大、`P=1`。  
-mTouch 的 `MT_LP_ENABLE` 在 TouchDeg 里不要开。
+空闲：该路 `S≈B`、`D` 很小、`P=0`。按下：`S` 下降、`B` 基本不动、`D` 变大、`P=1`。
+
+### 用 JCom 打开 `touchDeg.port`
+
+[`Doc/touchDeg.port`](Doc/touchDeg.port) 是 JCom 的接收协议工程（组名 `touchDeg`），已按上面 12 字节帧配好 **两路独立包**：
+
+| 包 | 匹配 | 曲线 |
+|----|------|------|
+| CH0通道 | 头 `55` + 通道 `00` + 尾 `AA` | 当前值 / 基线 / 差量 / 噪声；按下只显示数值 |
+| CH1通道 | 头 `55` + 通道 `01` + 尾 `AA` | 同上 |
+
+1. 打开 **JCom**，导入 / 打开 [`Doc/touchDeg.port`](Doc/touchDeg.port)
+2. 选择对应 COM 口，波特率 **9600 8N1**，打开串口
+3. 确认两个接收包 **CH0通道**、**CH1通道** 均勾选
+4. 看曲线：当前值、基线、差量、噪声；面板上的「按下」为 0/1
+5. `CurveOrderByChannel` 已打开，两路曲线按通道分开
+
+JCom 字段为小端（`IsBigEndian: false`），与固件一致。不要改成大端，否则 S/B/D 会错。
+
+两路颜色若相同，可在 JCom 里给 CH1 换色，便于对照。
+
+### 看图时注意
+
+- **S 跟着 B 一起跑、D 始终接近 0**：基线把触摸吃进去了，或空闲 S 长期高于 B（先等 B 跟上，或查极性）
+- **S 明显下降但 P 仍为 0**：本路阈值大于实际 D，减小 `QT_CHx_THRESH` / `MT_TOUCH_THRESH_MIN`
+- **噪声曲线几乎不变**：N 只统计空闲小抖动，不是 S 的峰峰值
+- 只连一路时另一包可能无数据，属正常
 
 ---
 
