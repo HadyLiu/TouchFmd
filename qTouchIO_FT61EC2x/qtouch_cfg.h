@@ -44,7 +44,7 @@
 #define QT_CAL_SHIFT 2u           /* 4 点 >>2 平均 */
 
 /* CH0 独立参数 */
-#define QT_CH0_THRESH 169u
+#define QT_CH0_THRESH 100u
 #define QT_CH0_THRESH_MIN (QT_CH0_THRESH * 65 / 100)   /* 最小阈值；T=本值+本路N×3 */
 #define QT_CH0_RELEASE_HYST (QT_CH0_THRESH * 40 / 100) /* 释放回差 */
 #define QT_CH0_DEBOUNCE_IN 2u                          /* 按下消抖次数 */
@@ -53,7 +53,7 @@
 #define QT_CH0_PRESS_TIMEOUT 2000u                     /* 长按超时扫描次数 */
 
 /* CH1 独立参数 */
-#define QT_CH1_THRESH 169u
+#define QT_CH1_THRESH 100u
 #define QT_CH1_THRESH_MIN (QT_CH1_THRESH * 65 / 100)   /* 最小阈值；T=本值+本路N×3 */
 #define QT_CH1_RELEASE_HYST (QT_CH1_THRESH * 40 / 100) /* 释放回差 */
 #define QT_CH1_DEBOUNCE_IN 2u                          /* 按下消抖次数 */
