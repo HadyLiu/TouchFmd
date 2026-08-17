@@ -60,30 +60,48 @@ static void Deg_PutU16(unsigned int v)
     SoftUart_PutChar((unsigned char)(v >> 8));
 }
 
+static unsigned char Deg_SnrRaw(int delta, unsigned char noise)
+{
+    unsigned int abs_d;
+    unsigned int snr;
+
+    if (noise == 0u)
+    {
+        return 0u;
+    }
+    if (delta < 0)
+    {
+        abs_d = (unsigned int)(-delta);
+    }
+    else
+    {
+        abs_d = (unsigned int)delta;
+    }
+    snr = (unsigned int)(abs_d / (unsigned int)noise);
+    if (snr > 255u)
+    {
+        snr = 255u;
+    }
+    return (unsigned char)snr;
+}
+
 /*
- * 每通道单独一帧：55 | ch | S_L S_H B_L B_H D_L D_H N P | AA
+ * 每通道单独一帧：55 | ch | S_L S_H B_L B_H D_L D_H SNR P | AA
  */
 static void Deg_ReportOne(unsigned char ch)
 {
     const MtKeyStatus* st;
-    unsigned int       delta;
+    int                delta;
 
-    st = MtKey_GetStatus(ch);
-    if (st->baseline > st->signal)
-    {
-        delta = (unsigned int)(st->baseline - st->signal);
-    }
-    else
-    {
-        delta = 0u;
-    }
+    st    = MtKey_GetStatus(ch);
+    delta = (int)st->baseline - (int)st->signal;
 
     SoftUart_PutChar(0x55u);
     SoftUart_PutChar(ch);
     Deg_PutU16(st->signal);
     Deg_PutU16(st->baseline);
-    Deg_PutU16(delta);
-    SoftUart_PutChar(st->noise);
+    Deg_PutU16((unsigned int)delta);
+    SoftUart_PutChar(Deg_SnrRaw(delta, st->noise));
     SoftUart_PutChar(st->pressed);
     SoftUart_PutChar(0xAAu);
 }

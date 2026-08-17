@@ -42,11 +42,21 @@ unsigned int QtAcq_MeasureOnce(unsigned char ch)
 unsigned int QtAcq_Measure(unsigned char ch)
 {
     unsigned char int_bak;
-    unsigned int  sample;
+    unsigned int  a;
+#if QT_BURST_SAMPLES >= 2
+    unsigned int  b;
+#endif
 
     int_bak = QtHal_IntSaveOff();
-    sample  = QtAcq_MeasureOnce(ch);
+    a       = QtAcq_MeasureOnce(ch);
+#if QT_BURST_SAMPLES >= 2
+    b = QtAcq_MeasureOnce(ch);
+#endif
     QtHal_IntRestore(int_bak);
 
-    return sample;
+#if QT_BURST_SAMPLES >= 2
+    return (unsigned int)((a + b) >> 1);
+#else
+    return a;
+#endif
 }

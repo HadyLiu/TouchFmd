@@ -70,35 +70,35 @@
 #define QT_ADC_FULLSCALE 1023u   /* 10 位满量程；S=本值-adc */
 #define QT_ADC_GO_TIMEOUT 2000u  /* 等 GO 完成的循环上限 */
 
-#define QT_BURST_SAMPLES 1u   /* 每路每轮采集次数；1=最快跟手 */
-#define QT_BURST_AVG_SHIFT 0u /* 突发>1 且去极值后用；1 次时无效 */
+#define QT_BURST_SAMPLES 2u /* 每路 2 次平均，压 ADC 空闲跳；1=最快 */
 
-#define QT_IIR_SHIFT 0u      /* 0：S=当次采集，跟手最快 */
-#define QT_NOISE_SHIFT 3u    /* 噪声底 IIR：/8 */
-#define QT_NOISE_IDLE_MIN 4u /* 空闲噪声带下限；超过则冻 B/N */
-#define QT_RECAL_HOLD 8u     /* S 连续高出 JUMP 这么多次才重校准 */
+#define QT_IIR_SHIFT 0u       /* 保留宏；按键层已固定用当次 S */
+#define QT_NOISE_SHIFT 3u     /* N IIR：/8；空闲 |D| 慢平均 */
+#define QT_NOISE_IDLE_MIN 4u  /* 空闲带下限；实际带子=max(本值, N) */
+#define QT_PRESS_OSC_MAX 8u   /* ADC 差量小；须小于按下 D，否则松开被拖住 */
+#define QT_SIGNAL_UP_SHIFT 3u /* 按下后小幅上浮 >>3 */
 
-#define QT_BASELINE_UP_STEP 2u    /* 空闲 S>B：每轮跟上；ADC 跟上要快一点 */
+#define QT_BASELINE_UP_STEP 1u    /* 空闲且未过阈值：S>B 每轮跟上 */
 #define QT_BASELINE_DOWN_SHIFT 5u /* 空闲且未过阈值：下漂 >>5，慢跟环境 */
 #define QT_CAL_SAMPLES 4u         /* 上电/重校准采样次数 */
 #define QT_CAL_SHIFT 2u           /* 4 点 >>2 平均 */
 
 /* CH0 独立参数（ADC 差量尺度，按板调 THRESH） */
-#define QT_CH0_THRESH 40u                              /* 标称差量；MIN/HYST 由此算出 */
-#define QT_CH0_THRESH_MIN (QT_CH0_THRESH * 65 / 100)   /* 最小阈值；T=本值+本路N×3 */
-#define QT_CH0_RELEASE_HYST (QT_CH0_THRESH * 40 / 100) /* 释放回差 */
-#define QT_CH0_DEBOUNCE_IN 1u                          /* 按下消抖次数 */
-#define QT_CH0_DEBOUNCE_OUT 1u                         /* 松开消抖次数 */
-#define QT_CH0_RECAL_JUMP 200u                         /* 空闲 S 突升；须连续才重校准 */
-#define QT_CH0_PRESS_TIMEOUT 2000u                     /* 长按超时扫描次数 */
+#define QT_CH0_THRESH 40u
+#define QT_CH0_THRESH_MIN (QT_CH0_THRESH * 65 / 100)   /* 固定按下阈值 T */
+#define QT_CH0_RELEASE_HYST (QT_CH0_THRESH * 20 / 100) /* 释放回差；ADC 不宜过大 */
+#define QT_CH0_DEBOUNCE_IN 2u                          /* 连续 2 次过阈才按下 */
+#define QT_CH0_DEBOUNCE_OUT 2u                         /* 松开消抖次数 */
+#define QT_CH0_RECAL_JUMP 200u                         /* 空闲 S 突升重校准 */
+#define QT_CH0_PRESS_TIMEOUT 500u                      /* 长按超时扫描次数 */
 
 /* CH1 独立参数 */
-#define QT_CH1_THRESH 40u                              /* 标称差量；MIN/HYST 由此算出 */
-#define QT_CH1_THRESH_MIN (QT_CH1_THRESH * 65 / 100)   /* 最小阈值；T=本值+本路N×3 */
-#define QT_CH1_RELEASE_HYST (QT_CH1_THRESH * 40 / 100) /* 释放回差 */
-#define QT_CH1_DEBOUNCE_IN 1u                          /* 按下消抖次数 */
-#define QT_CH1_DEBOUNCE_OUT 1u                         /* 松开消抖次数 */
-#define QT_CH1_RECAL_JUMP 200u                         /* 空闲 S 突升；须连续才重校准 */
-#define QT_CH1_PRESS_TIMEOUT 2000u                     /* 长按超时扫描次数 */
+#define QT_CH1_THRESH 40u
+#define QT_CH1_THRESH_MIN (QT_CH1_THRESH * 65 / 100)   /* 固定按下阈值 T */
+#define QT_CH1_RELEASE_HYST (QT_CH1_THRESH * 20 / 100) /* 释放回差；ADC 不宜过大 */
+#define QT_CH1_DEBOUNCE_IN 2u                          /* 连续 2 次过阈才按下 */
+#define QT_CH1_DEBOUNCE_OUT 2u                         /* 松开消抖次数 */
+#define QT_CH1_RECAL_JUMP 200u                         /* 空闲 S 突升重校准 */
+#define QT_CH1_PRESS_TIMEOUT 500u                      /* 长按超时扫描次数 */
 
 #endif

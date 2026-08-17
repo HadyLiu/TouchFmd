@@ -5,7 +5,7 @@ typedef struct
 {
     unsigned int  signal;
     unsigned int  baseline;
-    unsigned int  delta;
+    int           delta;
     unsigned char noise;
     unsigned char pressed;
 } QtKeyStatus;

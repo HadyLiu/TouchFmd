@@ -78,16 +78,60 @@ unsigned int QtAcq_MeasureOnce(unsigned char ch)
     return count;
 }
 
+static unsigned int QtAcq_Median3Raw(unsigned int a, unsigned int b,
+                                     unsigned int c)
+{
+    unsigned int t;
+
+    if (a > b)
+    {
+        t = a;
+        a = b;
+        b = t;
+    }
+    if (b > c)
+    {
+        t = b;
+        b = c;
+        c = t;
+    }
+    if (a > b)
+    {
+        t = a;
+        a = b;
+        b = t;
+    }
+    return b;
+}
+
 unsigned int QtAcq_Measure(unsigned char ch)
 {
     unsigned char int_bak;
-    unsigned int  sample;
+    unsigned int  a;
+#if QT_BURST_SAMPLES >= 2
+    unsigned int  b;
+#endif
+#if QT_BURST_SAMPLES >= 3
+    unsigned int  c;
+#endif
 
     int_bak = QtHal_IntSaveOff();
     QtHal_BeginCh(ch);
-    sample = QtAcq_OnceRaw(ch);
+    a = QtAcq_OnceRaw(ch);
+#if QT_BURST_SAMPLES >= 2
+    b = QtAcq_OnceRaw(ch);
+#endif
+#if QT_BURST_SAMPLES >= 3
+    c = QtAcq_OnceRaw(ch);
+#endif
     QtHal_EndCh();
     QtHal_IntRestore(int_bak);
 
-    return sample;
+#if QT_BURST_SAMPLES >= 3
+    return QtAcq_Median3Raw(a, b, c);
+#elif QT_BURST_SAMPLES >= 2
+    return (unsigned int)((a + b) >> 1);
+#else
+    return a;
+#endif
 }

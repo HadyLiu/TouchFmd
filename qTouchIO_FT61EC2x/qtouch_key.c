@@ -21,17 +21,9 @@ static unsigned int QtKey_ChU16(unsigned char ch, unsigned int v0,
     return v1;
 }
 
-static unsigned int QtKey_ThreshMinRaw(unsigned char ch)
-{
-    return QtKey_ChU16(ch, QT_CH0_THRESH_MIN, QT_CH1_THRESH_MIN);
-}
-
 unsigned int QtKey_GetThresh(unsigned char ch)
 {
-    unsigned int n;
-
-    n = s_key[ch].st.noise;
-    return (unsigned int)(QtKey_ThreshMinRaw(ch) + (n << 1) + n);
+    return QtKey_ChU16(ch, QT_CH0_THRESH_MIN, QT_CH1_THRESH_MIN);
 }
 
 static void QtKey_UpdateNoiseRaw(unsigned char ch, unsigned int residual)
@@ -39,7 +31,9 @@ static void QtKey_UpdateNoiseRaw(unsigned char ch, unsigned int residual)
     unsigned int n;
 
     n = s_key[ch].st.noise;
-    n = (unsigned int)(((n << QT_NOISE_SHIFT) - n + residual) >> QT_NOISE_SHIFT);
+    /* (7N+|D|+4)/8，+4 才能从 0 爬起来；N=空闲 |B-S| */
+    n = (unsigned int)(((n << QT_NOISE_SHIFT) - n + residual + 4u) >>
+                       QT_NOISE_SHIFT);
     if (n > 255u)
     {
         n = 255u;
@@ -47,38 +41,34 @@ static void QtKey_UpdateNoiseRaw(unsigned char ch, unsigned int residual)
     s_key[ch].st.noise = (unsigned char)n;
 }
 
-static void QtKey_TrackBaselineRaw(unsigned char ch, unsigned int signal,
-                                   unsigned int thresh)
+static void QtKey_TrackBaselineRaw(unsigned char ch, unsigned int signal)
 {
-    unsigned int delta;
+    unsigned int b;
+    unsigned int step;
 
-    if (signal >= s_key[ch].st.baseline)
+    b = s_key[ch].st.baseline;
+    if (signal >= b)
     {
-        s_key[ch].st.baseline =
-            (unsigned int)(s_key[ch].st.baseline + QT_BASELINE_UP_STEP);
-        if (s_key[ch].st.baseline > signal)
+        b = (unsigned int)(b + QT_BASELINE_UP_STEP);
+        if (b > signal)
         {
-            s_key[ch].st.baseline = signal;
+            b = signal;
         }
     }
     else
     {
-        delta = (unsigned int)(s_key[ch].st.baseline - signal);
-        if (delta < thresh)
+        step = (unsigned int)((b - signal) >> QT_BASELINE_DOWN_SHIFT);
+        if (step == 0u)
         {
-            delta = (unsigned int)(delta >> QT_BASELINE_DOWN_SHIFT);
-            if (delta == 0u)
-            {
-                delta = 1u;
-            }
-            s_key[ch].st.baseline =
-                (unsigned int)(s_key[ch].st.baseline - delta);
-            if (s_key[ch].st.baseline < signal)
-            {
-                s_key[ch].st.baseline = signal;
-            }
+            step = 1u;
+        }
+        b = (unsigned int)(b - step);
+        if (b < signal)
+        {
+            b = signal;
         }
     }
+    s_key[ch].st.baseline = b;
 }
 
 void QtKey_Recalibrate(unsigned char ch)
@@ -101,14 +91,14 @@ void QtKey_Recalibrate(unsigned char ch)
         sum    = (unsigned int)(sum + sample);
     }
 
-    sample          = (unsigned int)(sum >> QT_CAL_SHIFT);
-    k->st.baseline  = sample;
-    k->st.signal    = sample;
-    k->st.delta     = 0u;
-    k->st.noise     = 0u;
-    k->st.pressed   = 0u;
-    k->debounce     = 0u;
-    k->press_cnt    = 0u;
+    sample         = (unsigned int)(sum >> QT_CAL_SHIFT);
+    k->st.baseline = sample;
+    k->st.signal   = sample;
+    k->st.delta    = 0;
+    k->st.noise    = 0u;
+    k->st.pressed  = 0u;
+    k->debounce    = 0u;
+    k->press_cnt   = 0u;
 }
 
 void QtKey_RecalibrateAll(void)
@@ -127,42 +117,67 @@ void QtKey_Init(void)
     QtKey_RecalibrateAll();
 }
 
+static unsigned int QtKey_ShapePressRaw(unsigned int prev, unsigned int raw)
+{
+    unsigned int rise;
+
+    if (raw <= prev)
+    {
+        return raw;
+    }
+
+    rise = (unsigned int)(raw - prev);
+    if (rise > QT_PRESS_OSC_MAX)
+    {
+        return raw;
+    }
+
+    rise = (unsigned int)(rise >> QT_SIGNAL_UP_SHIFT);
+    if (rise == 0u)
+    {
+        rise = 1u;
+    }
+    prev = (unsigned int)(prev + rise);
+    if (prev > raw)
+    {
+        prev = raw;
+    }
+    return prev;
+}
+
 static void QtKey_ScanOneRaw(unsigned char ch)
 {
     QtKeyChRaw*  k;
     unsigned int raw;
-    unsigned int filt;
-    unsigned int delta;
-    unsigned int thresh;
-    unsigned int release_thr;
-    unsigned int hyst;
-    unsigned int recal_jump;
-    unsigned int timeout;
+    unsigned int s;
+    unsigned int abs_d;
     unsigned int idle_lim;
     unsigned int n;
+    int          d;
+    unsigned int thresh;
+    unsigned int hyst;
+    unsigned int release_thr;
+    unsigned int recal_jump;
+    unsigned int timeout;
 
     k   = &s_key[ch];
     raw = QtAcq_Measure(ch);
-#if QT_IIR_SHIFT == 0u
-    k->st.signal = raw;
-#else
-    filt         = k->st.signal;
-    filt         = (unsigned int)(((filt << QT_IIR_SHIFT) - filt + raw) >>
-                          QT_IIR_SHIFT);
-    k->st.signal = filt;
-    raw          = filt;
-#endif
-    filt = k->st.signal;
-
-    if (k->st.baseline > filt)
+    s   = raw;
+    if (k->st.pressed != 0u)
     {
-        delta = (unsigned int)(k->st.baseline - filt);
+        s = QtKey_ShapePressRaw(k->st.signal, raw);
+    }
+    k->st.signal = s;
+    d            = (int)k->st.baseline - (int)s;
+    k->st.delta  = d;
+    if (d < 0)
+    {
+        abs_d = (unsigned int)(-d);
     }
     else
     {
-        delta = 0u;
+        abs_d = (unsigned int)d;
     }
-    k->st.delta = delta;
 
     thresh     = QtKey_GetThresh(ch);
     hyst       = QtKey_ChU16(ch, QT_CH0_RELEASE_HYST, QT_CH1_RELEASE_HYST);
@@ -171,44 +186,41 @@ static void QtKey_ScanOneRaw(unsigned char ch)
 
     if (k->st.pressed == 0u)
     {
-        /* 只用空闲小抖动更新 N/B；手指靠近后冻结，避免把触摸吃进去 */
-        n        = k->st.noise;
-        idle_lim = (unsigned int)((n << 1) + n);
-        if (idle_lim < QT_NOISE_IDLE_MIN)
+        n        = (unsigned int)k->st.noise;
+        idle_lim = (unsigned int)((n << 1) + QT_NOISE_IDLE_MIN);
+        /* 只吃空闲 |D|；手指靠近（|D| 突然比 2N 大）不抬 N */
+        if (d < (int)thresh)
         {
-            idle_lim = QT_NOISE_IDLE_MIN;
+            if ((n == 0u) || (abs_d <= idle_lim))
+            {
+                QtKey_UpdateNoiseRaw(ch, abs_d);
+                n = (unsigned int)k->st.noise;
+            }
         }
 
-        if ((k->debounce == 0u) && (delta <= idle_lim))
+        idle_lim = QT_NOISE_IDLE_MIN;
+        if (n > idle_lim)
         {
-            QtKey_UpdateNoiseRaw(ch, delta);
-            thresh = QtKey_GetThresh(ch);
-            QtKey_TrackBaselineRaw(ch, filt, thresh);
+            idle_lim = n;
         }
 
-        if (filt > (unsigned int)(k->st.baseline + recal_jump))
+        /* 空闲才跟 B；D 超过空闲带则冻 B，避免吃掉手指 */
+        if (d <= (int)idle_lim)
+        {
+            QtKey_TrackBaselineRaw(ch, s);
+        }
+
+        if (s > (unsigned int)(k->st.baseline + recal_jump))
         {
             QtKey_Recalibrate(ch);
             return;
         }
 
-        if (delta >= thresh)
+        if (d >= (int)thresh)
         {
-            if (k->debounce < 255u)
-            {
-                k->debounce++;
-            }
-            if (k->debounce >= QtKey_ChU16(ch, QT_CH0_DEBOUNCE_IN,
-                                           QT_CH1_DEBOUNCE_IN))
-            {
-                k->st.pressed = 1u;
-                k->debounce   = 0u;
-                k->press_cnt  = 0u;
-            }
-        }
-        else
-        {
-            k->debounce = 0u;
+            k->st.pressed = 1u;
+            k->debounce   = 0u;
+            k->press_cnt  = 0u;
         }
     }
     else
@@ -228,12 +240,8 @@ static void QtKey_ScanOneRaw(unsigned char ch)
         {
             release_thr = (unsigned int)(release_thr - hyst);
         }
-        else
-        {
-            release_thr = QtKey_ThreshMinRaw(ch);
-        }
 
-        if (delta <= release_thr)
+        if (d <= (int)release_thr)
         {
             if (k->debounce < 255u)
             {
@@ -247,9 +255,9 @@ static void QtKey_ScanOneRaw(unsigned char ch)
                 k->press_cnt  = 0u;
             }
         }
-        else
+        else if (k->debounce > 0u)
         {
-            k->debounce = 0u;
+            k->debounce--;
         }
     }
 }

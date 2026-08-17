@@ -61,8 +61,33 @@ static void Deg_PutU16(unsigned int v)
     SoftUart_PutChar((unsigned char)(v >> 8));
 }
 
+static unsigned char Deg_SnrRaw(int delta, unsigned char noise)
+{
+    unsigned int abs_d;
+    unsigned int snr;
+
+    if (noise == 0u)
+    {
+        return 0u;
+    }
+    if (delta < 0)
+    {
+        abs_d = (unsigned int)(-delta);
+    }
+    else
+    {
+        abs_d = (unsigned int)delta;
+    }
+    snr = (unsigned int)(abs_d / (unsigned int)noise);
+    if (snr > 255u)
+    {
+        snr = 255u;
+    }
+    return (unsigned char)snr;
+}
+
 /*
- * 每通道单独一帧：55 | ch | S_L S_H B_L B_H D_L D_H N P | AA
+ * 每通道单独一帧：55 | ch | S_L S_H B_L B_H D_L D_H SNR P | AA
  */
 static void Deg_ReportOne(unsigned char ch)
 {
@@ -74,8 +99,8 @@ static void Deg_ReportOne(unsigned char ch)
     SoftUart_PutChar(ch);
     Deg_PutU16(st->signal);
     Deg_PutU16(st->baseline);
-    Deg_PutU16(st->delta);
-    SoftUart_PutChar(st->noise);
+    Deg_PutU16((unsigned int)st->delta);
+    SoftUart_PutChar(Deg_SnrRaw(st->delta, st->noise));
     SoftUart_PutChar(st->pressed);
     SoftUart_PutChar(0xAAu);
 }
@@ -84,6 +109,7 @@ void main(void)
 {
     unsigned char ch;
     unsigned char mask;
+    unsigned char scans;
 
     CLRWDT();
     DelayMs(20);
@@ -91,6 +117,7 @@ void main(void)
     SoftUart_Init();
     QtKey_Init();
 
+    scans = 0u;
     while (1)
     {
         for (ch = 0u; ch < QT_CH_COUNT; ch++)
@@ -98,7 +125,16 @@ void main(void)
             QtKey_ScanCh(ch);
             mask = QtKey_GetPressedMask();
             Deg_UpdateLeds(mask);
-            Deg_ReportOne(ch);
+        }
+        /* 连续扫多轮再发串口，灯跟手；9600 每帧约 12ms */
+        scans++;
+        if (scans >= 8u)
+        {
+            scans = 0u;
+            for (ch = 0u; ch < QT_CH_COUNT; ch++)
+            {
+                Deg_ReportOne(ch);
+            }
         }
     }
 }
