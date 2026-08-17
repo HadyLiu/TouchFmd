@@ -6,6 +6,7 @@ typedef struct
 {
     QtKeyStatus   st;
     unsigned char debounce;
+    unsigned char rise_cnt;
     unsigned int  press_cnt;
 } QtKeyChRaw;
 
@@ -108,6 +109,7 @@ void QtKey_Recalibrate(unsigned char ch)
     k->st.noise    = 0u;
     k->st.pressed  = 0u;
     k->debounce    = 0u;
+    k->rise_cnt    = 0u;
     k->press_cnt   = 0u;
 }
 
@@ -140,6 +142,7 @@ static void QtKey_ScanOneRaw(unsigned char ch)
     unsigned int timeout;
     unsigned int idle_lim;
     unsigned int n;
+    unsigned int rise;
 
     k   = &s_key[ch];
     raw = QtAcq_Measure(ch);
@@ -156,10 +159,12 @@ static void QtKey_ScanOneRaw(unsigned char ch)
     if (k->st.baseline > filt)
     {
         delta = (unsigned int)(k->st.baseline - filt);
+        rise  = 0u;
     }
     else
     {
         delta = 0u;
+        rise  = (unsigned int)(filt - k->st.baseline);
     }
     k->st.delta = delta;
 
@@ -177,6 +182,7 @@ static void QtKey_ScanOneRaw(unsigned char ch)
             idle_lim = QT_NOISE_IDLE_MIN;
         }
 
+        /* S>B 是环境偏高，要跟基线；只有 S 下降超过空闲带才冻 B/N */
         if ((k->debounce == 0u) && (delta <= idle_lim))
         {
             QtKey_UpdateNoiseRaw(ch, delta);
@@ -184,10 +190,21 @@ static void QtKey_ScanOneRaw(unsigned char ch)
             QtKey_TrackBaselineRaw(ch, filt, thresh);
         }
 
-        if (filt > (unsigned int)(k->st.baseline + recal_jump))
+        if (rise > recal_jump)
         {
-            QtKey_Recalibrate(ch);
-            return;
+            if (k->rise_cnt < 255u)
+            {
+                k->rise_cnt++;
+            }
+            if (k->rise_cnt >= QT_RECAL_HOLD)
+            {
+                QtKey_Recalibrate(ch);
+                return;
+            }
+        }
+        else
+        {
+            k->rise_cnt = 0u;
         }
 
         if (delta >= thresh)
