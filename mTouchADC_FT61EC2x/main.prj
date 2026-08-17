@@ -1,0 +1,6 @@
+Projece Name = main.prj
+Projece Path = D:\Hady\02_Workspace\TouchFmd\mTouchADC_FT61EC2x\main.prj
+Device = FT61EC2X
+Source File = delay.c,main.c,mtouch_acq.c,mtouch_hal.c,
+EE File = 
+

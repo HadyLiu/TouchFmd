@@ -1,0 +1,6 @@
+Projece Name = main.prj
+Projece Path = D:\Hady\02_Workspace\TouchFmd\qTouchIO_FT61EC2x\main.prj
+Device = FT61EC2X
+Source File = delay.c,main.c,qtouch_acq.c,qtouch_hal.c,qtouch_key.c,
+EE File = 
+

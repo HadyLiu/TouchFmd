@@ -3,8 +3,7 @@
 面向 **FMD 8 位 MCU** 的电容触摸固件：电荷转移 QTouch 与 ADC CVD 自电容。  
 目标是可商用、抗干扰、RAM 占用低，引脚与算法参数全部宏定义，便于移植。
 
-按键层共用同一套判决逻辑：中值 + IIR、噪声底自适应阈值、动态基线、迟滞消抖、上电/跳变/粘键重校准。  
-触摸后信号 **S 下降**，按下判据为 `D = max(B − S, 0)`。
+触摸后信号 **S 下降**，按下判据 `D = max(B − S, 0)`。按键层（中值、IIR、基线、消抖、校准）各方案共用。
 
 许可证：[Apache License 2.0](LICENSE)
 
@@ -15,14 +14,14 @@
 | 目录 | 芯片 | 采集原理 | 外接 Cs | 通道数 | 适用 |
 |------|------|----------|---------|--------|------|
 | [`qTouchIO_FT62F21x`](qTouchIO_FT62F21x/) | FT62F21x | GPIO 电荷转移，计次数到约 1/2 VDD | 要（约 22 nF） | 1 | 无 ADC 或资源极紧 |
-| [`qTouchIO_FT61FC3x`](qTouchIO_FT61FC3x/) | FT61FC3x | 同上 | 要 | 1 | IO 方案移植到 FT61 |
-| [`qTouchADC_FT61FC3x`](qTouchADC_FT61FC3x/) | FT61FC3x | 固定少量转移后 12 位 ADC 读 Cs | 要 | 1 | 与 IO 同硬件，次数少、分辨高 |
-| [`mTouchADC_FT61FC3x`](mTouchADC_FT61FC3x/) | FT61FC3x | 片内 CVD 电容分压 | **不要** | 1～8，通道表可配 | 多路按键、低功耗 |
+| [`qTouchIO_FT61EC2x`](qTouchIO_FT61EC2x/) | FT61EC2x | 同上 | 要 | 2 | IO 方案，SNS 可为非模拟脚 |
+| [`qTouchADC_FT61EC2x`](qTouchADC_FT61EC2x/) | FT61EC2x | 固定少量转移后 10 位 ADC 读 Cs | 要 | 2 | SNS 须为 ANx |
+| [`mTouchADC_FT61EC2x`](mTouchADC_FT61EC2x/) | FT61EC2x | 片内 CVD，C_hold=1/4VDD | **不要** | 2 | 多路、少外围、低功耗 |
 
 选型建议：
 
-1. **多路、少外围** → `mTouchADC_FT61FC3x`
-2. **单路、已有 SNS+SMP+Cs 板** → `qTouchADC_FT61FC3x`（有 ADC）或 `qTouchIO_*`（纯 GPIO）
+1. **多路、少外围** → `mTouchADC_FT61EC2x`
+2. **已有 SNS+SMP+Cs 板** → `qTouchADC_FT61EC2x`（SNS 为 ANx）或 `qTouchIO_FT61EC2x`（纯 GPIO）
 3. **FT62F21x** → 只用 `qTouchIO_FT62F21x`
 
 各方案细节见对应目录下的 `reademe.md`。
@@ -34,9 +33,9 @@
 ```text
 TouchFmd/
 ├── qTouchIO_FT62F21x/     # GPIO QTouch，FT62F21x
-├── qTouchIO_FT61FC3x/     # GPIO QTouch，FT61FC3x
-├── qTouchADC_FT61FC3x/    # ADC QTouch，FT61FC3x
-├── mTouchADC_FT61FC3x/    # 多路 ADC CVD，FT61FC3x
+├── qTouchIO_FT61EC2x/     # GPIO QTouch，FT61EC2x 两路
+├── qTouchADC_FT61EC2x/    # ADC QTouch，FT61EC2x 两路
+├── mTouchADC_FT61EC2x/    # 两路 ADC CVD，FT61EC2x
 ├── clearVxx.bat           # 清理 IDE 中间文件
 └── LICENSE
 ```
@@ -45,12 +44,12 @@ TouchFmd/
 
 | 文件 | 职责 |
 |------|------|
-| `*_cfg.h` | 引脚、通道、全部算法参数 |
-| `*_hal.c/h` | GPIO / ADC 寄存器操作 |
-| `*_acq.c/h` | 单次采集 + 突发去极值平均 |
+| `*_cfg.h` | 通道表、算法参数（不含寄存器） |
+| `*_hal.c/h` | 硬件：GPIO / ADC / 中断；**移植芯片主要改这里** |
+| `*_acq.c/h` | 采集驱动：电荷转移或 CVD 时序 |
 | `*_key.c/h` | 滤波、基线、判决、校准 |
-| `main.c` | 应用入口：扫描触摸，按下时 PA1 输出高 |
-| `touchdeg_main.c` | 调试入口：PA1 软串口约 9600 上报 |
+| `main.c` | 应用入口：扫描触摸，PA7/PA6 低有效指示通道1/2 |
+| `touchdeg_main.c` | 调试入口：PA2 软串口约 9600 上报 |
 | `soft_uart.c/h` | TouchDeg 软串口（无库除法打数字） |
 | `main.prj` / `TouchDeg.prj` | FMD IDE 工程 |
 
@@ -63,53 +62,48 @@ TouchFmd/
 SNS + SMP + 外接 Cs。手指靠近 → Cx 变大 → 每次转移电荷更多 → **S 下降**。
 
 ```text
-  [铜箔 Cx]──[Rs ≈ 1 kΩ]──┬── GPIO SNS（默认 PA0）
+  [铜箔 Cx]──[Rs ≈ 1 kΩ]──┬── GPIO SNS
                           │
                          Cs ≈ 22 nF NPO/C0G
                           │
-                          └── GPIO SMP（默认 PA4）
+                          └── GPIO SMP
 ```
 
-| 网络 | 默认脚 | 说明 |
-|------|--------|------|
-| SNS | PA0 | 感应脚；ADC 方案兼 AN0 |
-| SMP | PA4 | 采样脚，接 Cs 另一端 |
-| Deg / 指示 | PA1 | TouchDeg TX；应用按下指示 |
+FT61EC2x 两路 QTouch（只改 `qtouch_cfg.h` 通道表）：
 
-ADC 方案与 IO **硬件相同**：IO 要转到数字口约 1/2 VDD（可达数百次）；ADC 只固定转移少量次数（默认 64）再读 Cs 电压。
+```c
+#define QT_CH0_SNS_BIT 2u /* PC2 */
+#define QT_CH0_SMP_BIT 3u /* PC3 */
+#define QT_CH1_SNS_BIT 1u /* PC1 */
+#define QT_CH1_SMP_BIT 4u /* PC4 */
+```
+
+| 通道 | SNS | SMP |
+|------|-----|-----|
+| CH0 | PC2(AN6) | PC3 |
+| CH1 | PC1(AN5) | PC4 |
+
+IO 与 ADC 同一套脚。手册：**AN5=PC1，AN6=PC2，PC4 无 ADC**（作 SMP）。
+
+指示：PA7=通道1、PA6=通道2，**低有效**。日志 TX：PA2。Cs 用 NPO/C0G；Rs 约 1 kΩ。
 
 ### mTouch CVD
 
-每路铜箔经 Rs 接到对应 `ANx`（`ANx = PAx`）。片内 C_hold 与 Cx 分压，**无外接 22 nF**。  
-另需一颗 **PRE dummy**（默认 PA2），不接铜箔，用于预充 C_hold。
+每路铜箔经 Rs 接到 `ANx`。片内 C_hold 与 Cx 分压，**无外接 22 nF**。  
+FT61EC2x 用内部 **1/4VDD (AN7)** 预充 C_hold，不占 GPIO。
 
-默认 3 路：PA0 / PA3 / PA4。改通道只动 `mtouch_cfg.h` 的 `MT_CH_COUNT` 与 `MT_CH_ADC_INIT`。
+默认两路：PC2/AN6、PC1/AN5。改通道只动 `mtouch_cfg.h` 的 `MT_CHn_ADC` / `MT_CHn_BIT` 和 `MT_CH_COUNT`。
 
 ### 公共约束
 
 - Cs 用 NPO/C0G；Rs 约 1 kΩ
 - 测量时关闭感应脚上拉
-- **勿用 PA6**（ISP CLK）
-- 勿占用 PA1（指示 / 软串口）
-- mTouch 的 PRE 不要出现在通道表里，也不要接到铜箔
+- FT61EC2x：**PA0 为 ISP CLK**；勿占用 PA7/PA6（指示）和 PA2（日志 TX）
+- mTouch 感应脚必须是 ANx（PC4 不行）
 
 ---
 
-## 按键算法（共用）
-
-每轮扫描顺序：
-
-1. **突发采集**：关中断，采 6 点，去最大最小，剩余 4 点 `>>2` 平均
-2. **三点中值** → **一阶 IIR** `filt = (filt*3 + med)/4` → 得到 S
-3. **差值** `D = max(B − S, 0)`；阈值 `T = THRESH_MIN + noise×3`
-4. **噪声底**：仅空闲且未过阈值时用残差 IIR 更新
-5. **动态基线**：未按快上慢下，按下冻结
-6. **迟滞 + 进出消抖** 确认按下 / 释放
-7. **重校准**：上电平均、正向跳变、粘键超时
-
-热路径避免库乘除（移位或 `(n<<1)+n`），适配 FT62 等 RAM/指令紧的芯片。
-
-应用侧典型用法：
+## 应用接口
 
 ```c
 QtKey_Init();           /* 或 MtKey_Init() */
@@ -117,31 +111,40 @@ QtKey_Init();           /* 或 MtKey_Init() */
 while (1)
 {
     QtKey_Scan();
-    st = QtKey_GetStatus();
-    App_SetOut(st->pressed);   /* 1 = 按下 */
+    mask = QtKey_GetPressedMask();  /* bit0=CH0，bit1=CH1 */
     DelayMs(5);
 }
 ```
 
-多路 mTouch 用 `MtKey_GetPressedMask()`：bit0 = 通道 0，bit1 = 通道 1，…  
-任意键按下时默认 PA1 输出高。
+CH0 按下 → PA7 低；CH1 按下 → PA6 低。
 
 ---
 
 ## 调试（TouchDeg）
 
-用 FMD IDE 打开对应目录的 `TouchDeg.prj`，PA1 软串口约 **9600** 上报。
-
-单路：
+`TouchDeg.prj`，PA2，约 9600 8N1。每个通道单独一帧（12 字节）：
 
 ```text
-S=<signal> B=<baseline> D=<delta> N=<noise> T=<thresh> P=<pressed>
+55 | ch | S_L S_H  B_L B_H  D_L D_H  N  P | AA
 ```
 
-多路每通道一行 `K n S= B= D= P=`，末行 `M=` 为按下掩码。
+```text
+55  00  S0l S0h  B0l B0h  D0l D0h  N0  P0  AA   ← CH0（PA7）
+55  01  S1l S1h  B1l B1h  D1l D1h  N1  P1  AA   ← CH1（PA6）
+```
 
-空闲应 `S≈B`、`D` 很小；按下该路 `D` 明显变大、`P=1`。  
-**TouchDeg 不要开低功耗**（mTouch 的 `MT_LP_ENABLE`），否则串口会丢。
+| 字段 | 长度 | 含义 |
+|------|------|------|
+| `55` / `AA` | 1 | 起始 / 结束 |
+| `ch` | 1 | 通道号，0=CH0，1=CH1 |
+| `S` | 2 小端 | 该路滤波后信号，触摸后下降 |
+| `B` | 2 小端 | 该路动态基线 |
+| `D` | 2 小端 | 该路 `max(B − S, 0)` |
+| `N` | 1 | 该路噪声底 |
+| `P` | 1 | 该路是否按下 |
+
+空闲该路 `S≈B`、`D` 很小；按下该路 `D` 变大、`P=1`。  
+mTouch 的 `MT_LP_ENABLE` 在 TouchDeg 里不要开。
 
 ---
 
@@ -150,7 +153,7 @@ S=<signal> B=<baseline> D=<delta> N=<noise> T=<thresh> P=<pressed>
 参数全部在各方案的 `qtouch_cfg.h` / `mtouch_cfg.h`。
 
 1. TouchDeg 确认空闲 `S≈B`，按下 `D` 变大
-2. QTouch ADC：先调 `QT_TRANSFER_PULSES`，让空闲 ADC 落在量程中下部（太小加大次数，接近 4095 则减小或检查 Cs）
+2. QTouch ADC：先调 `QT_TRANSFER_PULSES`，让空闲 ADC 落在量程中下部（太小加大次数，接近 1023 则减小或检查 Cs）
 3. 再调 `QT_TOUCH_THRESH_MIN` / `MT_TOUCH_THRESH_MIN`：空闲不误触、轻触能触发
 4. 仍抖：加大 `DEBOUNCE_*` / `RELEASE_HYST`
 5. 环境跟不上：略增 `BASELINE_UP_STEP` 或调整 `BASELINE_DOWN_SHIFT`

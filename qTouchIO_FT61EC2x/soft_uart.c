@@ -18,9 +18,10 @@ static void SoftUart_BitDelay(void)
 {
     unsigned char i;
 
-    for (i = 0u; i < QT_DBG_BAUD_DELAY; i++)
+    /* FT61EC2x 8MHz/2T：10*Delay10Us ≈ 100us，对齐 9600 的 104us */
+    for (i = 0u; i < QT_DBG_BAUD_10US; i++)
     {
-        NOP();
+        Delay10Us();
     }
 }
 

@@ -1,33 +1,34 @@
 #include "soft_uart.h"
 #include "delay.h"
-#include "qtouch_cfg.h"
+#include "mtouch_cfg.h"
 
-#define QT_TX_MASK (1u << QT_DBG_TX_BIT)
+#define MT_TX_MASK (1u << MT_DBG_TX_BIT)
 
 static void SoftUart_TxHigh(void)
 {
-    PORTA |= QT_TX_MASK;
+    PORTA |= MT_TX_MASK;
 }
 
 static void SoftUart_TxLow(void)
 {
-    PORTA &= (unsigned char)(~QT_TX_MASK);
+    PORTA &= (unsigned char)(~MT_TX_MASK);
 }
 
 static void SoftUart_BitDelay(void)
 {
     unsigned char i;
 
-    for (i = 0u; i < QT_DBG_BAUD_DELAY; i++)
+    /* FT61EC2x 8MHz/2T：10*Delay10Us ≈ 100us，对齐 9600 的 104us */
+    for (i = 0u; i < MT_DBG_BAUD_10US; i++)
     {
-        NOP();
+        Delay10Us();
     }
 }
 
 void SoftUart_Init(void)
 {
-    PORTA |= QT_TX_MASK;
-    TRISA &= (unsigned char)(~QT_TX_MASK);
+    PORTA |= MT_TX_MASK;
+    TRISA &= (unsigned char)(~MT_TX_MASK);
 }
 
 void SoftUart_PutChar(unsigned char ch)

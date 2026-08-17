@@ -24,6 +24,7 @@ for /f "delims=" %%i in ('dir /b /s /a-d "*.bin"') do (
     )
 )
 
+del /f /s /q *.lpp
 del /f /s /q *.as
 del /f /s /q *.lst
 del /f /s /q *.rlf

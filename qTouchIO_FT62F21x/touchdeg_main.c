@@ -1,8 +1,8 @@
 /*-------------------------------------------------
  * 工程：TouchDeg（调试上报）
- * 功能：上报 signal / baseline / delta / noise / thresh / pressed
+ * 功能：上报 signal / baseline / delta / noise / pressed
  * 串口：PA1 软 UART 约 9600 8N1
- * 格式：S=.. B=.. D=.. N=.. T=.. P=..\r\n
+ * 帧：55 | ch | S_L S_H B_L B_H D_L D_H N P | AA
  --------------------------------------------------*/
 #include "SYSCFG.h"
 #include "delay.h"
@@ -23,6 +23,12 @@ static void Deg_PowerInit(void)
     PSINKA = 0;
 }
 
+static void Deg_PutU16(unsigned int v)
+{
+    SoftUart_PutChar((unsigned char)v);
+    SoftUart_PutChar((unsigned char)(v >> 8));
+}
+
 static void Deg_Report(void)
 {
     const QtKeyStatus* st;
@@ -38,19 +44,14 @@ static void Deg_Report(void)
         delta = 0u;
     }
 
-    SoftUart_PutStr("S=");
-    SoftUart_PutU16(st->signal);
-    SoftUart_PutStr(" B=");
-    SoftUart_PutU16(st->baseline);
-    SoftUart_PutStr(" D=");
-    SoftUart_PutU16(delta);
-    SoftUart_PutStr(" N=");
-    SoftUart_PutU16(st->noise);
-    SoftUart_PutStr(" T=");
-    SoftUart_PutU16(QtKey_GetThresh());
-    SoftUart_PutStr(" P=");
-    SoftUart_PutU16(st->pressed);
-    SoftUart_PutStr("\r\n");
+    SoftUart_PutChar(0x55u);
+    SoftUart_PutChar(0u);
+    Deg_PutU16(st->signal);
+    Deg_PutU16(st->baseline);
+    Deg_PutU16(delta);
+    SoftUart_PutChar(st->noise);
+    SoftUart_PutChar(st->pressed);
+    SoftUart_PutChar(0xAAu);
 }
 
 void main(void)
@@ -58,8 +59,6 @@ void main(void)
     Deg_PowerInit();
     SoftUart_Init();
     QtKey_Init();
-
-    SoftUart_PutStr("QTouch Deg\r\n");
 
     while (1)
     {

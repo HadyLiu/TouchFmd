@@ -1,0 +1,6 @@
+Projece Name = touchDeg.prj
+Projece Path = D:\Hady\02_Workspace\TouchFmd\qTouchADC_FT61EC2x\touchDeg.prj
+Device = FT61EC2X
+Source File = touchdeg_main.c,delay.c,qtouch_key.c,soft_uart.c,qtouch_acq.c,qtouch_hal.c,
+EE File = 
+
