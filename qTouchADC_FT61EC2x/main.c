@@ -27,6 +27,7 @@ static void App_PowerInit(void)
 
     CLRWDT();
     OPTION  = 0B00001000;
+    WDTCON  = 0;
     MSCKCON = 0B00000000;
     CMCON0  = 0B00000111;
 }
@@ -53,14 +54,21 @@ static void App_UpdateLeds(unsigned char pressed_mask)
 
 void main(void)
 {
+    unsigned char ch;
+    unsigned char mask;
+
+    CLRWDT();
     DelayMs(20);
     App_PowerInit();
     QtKey_Init();
 
     while (1)
     {
-        QtKey_Scan();
-        App_UpdateLeds(QtKey_GetPressedMask());
-        DelayMs(5);
+        for (ch = 0u; ch < QT_CH_COUNT; ch++)
+        {
+            QtKey_ScanCh(ch);
+            mask = QtKey_GetPressedMask();
+            App_UpdateLeds(mask);
+        }
     }
 }

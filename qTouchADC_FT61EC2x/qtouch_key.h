@@ -5,12 +5,14 @@ typedef struct
 {
     unsigned int  signal;
     unsigned int  baseline;
+    unsigned int  delta;
     unsigned char noise;
     unsigned char pressed;
 } QtKeyStatus;
 
 void               QtKey_Init(void);
 void               QtKey_Scan(void);
+void               QtKey_ScanCh(unsigned char ch);
 void               QtKey_Recalibrate(unsigned char ch);
 void               QtKey_RecalibrateAll(void);
 unsigned int       QtKey_GetThresh(unsigned char ch);

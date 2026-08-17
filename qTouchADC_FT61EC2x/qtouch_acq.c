@@ -13,8 +13,8 @@ void QtAcq_Init(void)
  */
 unsigned int QtAcq_MeasureOnce(unsigned char ch)
 {
-    unsigned char i;
-    unsigned int  adc;
+    unsigned int i;
+    unsigned int adc;
 
     QtHal_BeginCh(ch);
 
@@ -41,37 +41,12 @@ unsigned int QtAcq_MeasureOnce(unsigned char ch)
 
 unsigned int QtAcq_Measure(unsigned char ch)
 {
-    unsigned char i;
     unsigned char int_bak;
     unsigned int  sample;
-    unsigned int  sum;
-    unsigned int  vmin;
-    unsigned int  vmax;
 
     int_bak = QtHal_IntSaveOff();
-
-    sum  = 0u;
-    vmin = 0xFFFFu;
-    vmax = 0u;
-
-    for (i = 0u; i < QT_BURST_SAMPLES; i++)
-    {
-        sample = QtAcq_MeasureOnce(ch);
-        sum    = (unsigned int)(sum + sample);
-        if (sample < vmin)
-        {
-            vmin = sample;
-        }
-        if (sample > vmax)
-        {
-            vmax = sample;
-        }
-    }
-
+    sample  = QtAcq_MeasureOnce(ch);
     QtHal_IntRestore(int_bak);
 
-    sum = (unsigned int)(sum - vmin);
-    sum = (unsigned int)(sum - vmax);
-
-    return (unsigned int)(sum >> QT_BURST_AVG_SHIFT);
+    return sample;
 }

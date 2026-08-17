@@ -109,7 +109,7 @@ FT61EC2x 用内部 **1/4VDD (AN7)** 预充 C_hold，不占 GPIO。
 
 ## qTouch IO 算法
 
-实现以 [`qTouchIO_FT61EC2x`](qTouchIO_FT61EC2x/) 为准（`qTouchIO_FT62F21x` 为单路同源简化）。  
+实现以 [`qTouchIO_FT61EC2x`](qTouchIO_FT61EC2x/) 为准；[`qTouchADC_FT61EC2x`](qTouchADC_FT61EC2x/) 按键层相同，仅采集改为固定次数转移后 ADC 读 Cs（`S = 1023 − adc`）。  
 参数全部在 `qtouch_cfg.h`。每路一套状态，互不共用。
 
 ### 物理量
@@ -138,7 +138,8 @@ SNS 接铜箔，SMP 接 Cs。`DIR=0` 输出，`DIR=1` 输入。测本路前把�
    - 读 SNS：1 = Cs 已到约 VIH，结束；0 = 再转一次
 3. 两脚再输出低
 
-返回值即本路原始计数。当前 `QtAcq_Measure` 关中断后做 **一轮** 转移（`QT_BURST_SAMPLES` 为预留）。
+返回值即本路原始计数。当前 IO 的 `QtAcq_Measure` 关中断后做 **一轮** 转移。  
+ADC 方案先固定 `QT_TRANSFER_PULSES` 次再读 ADC，突发去极值后得到 S。
 
 `QT_IIR_SHIFT == 0`：S = 当次计数。  
 `QT_IIR_SHIFT == 1`：`S = (S + 当次) / 2`。

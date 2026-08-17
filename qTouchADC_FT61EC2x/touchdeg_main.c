@@ -1,6 +1,6 @@
 /*-------------------------------------------------
  * 工程：TouchDeg
- * 功能：逐通道上报 S/B/D/P 与按下掩码
+ * 功能：逐通道上报 S/B/D/P
  * 串口：PA2 软 UART 约 9600 8N1，帧 0x55 ... 0xAA
  * 指示：PA7/PA6 低有效 = 通道1/2 按下
  * 芯片：FT61EC2x 两路 ADC QTouch
@@ -30,6 +30,7 @@ static void Deg_PowerInit(void)
 
     CLRWDT();
     OPTION  = 0B00001000;
+    WDTCON  = 0;
     MSCKCON = 0B00000000;
     CMCON0  = 0B00000111;
 }
@@ -66,42 +67,25 @@ static void Deg_PutU16(unsigned int v)
 static void Deg_ReportOne(unsigned char ch)
 {
     const QtKeyStatus* st;
-    unsigned int       delta;
 
     st = QtKey_GetStatus(ch);
-    if (st->baseline > st->signal)
-    {
-        delta = (unsigned int)(st->baseline - st->signal);
-    }
-    else
-    {
-        delta = 0u;
-    }
 
     SoftUart_PutChar(0x55u);
     SoftUart_PutChar(ch);
     Deg_PutU16(st->signal);
     Deg_PutU16(st->baseline);
-    Deg_PutU16(delta);
+    Deg_PutU16(st->delta);
     SoftUart_PutChar(st->noise);
     SoftUart_PutChar(st->pressed);
     SoftUart_PutChar(0xAAu);
 }
 
-static void Deg_Report(void)
-{
-    unsigned char ch;
-
-    for (ch = 0u; ch < QT_CH_COUNT; ch++)
-    {
-        Deg_ReportOne(ch);
-    }
-}
-
 void main(void)
 {
+    unsigned char ch;
     unsigned char mask;
 
+    CLRWDT();
     DelayMs(20);
     Deg_PowerInit();
     SoftUart_Init();
@@ -109,10 +93,12 @@ void main(void)
 
     while (1)
     {
-        QtKey_Scan();
-        mask = QtKey_GetPressedMask();
-        Deg_UpdateLeds(mask);
-        Deg_Report();
-        DelayMs(5);
+        for (ch = 0u; ch < QT_CH_COUNT; ch++)
+        {
+            QtKey_ScanCh(ch);
+            mask = QtKey_GetPressedMask();
+            Deg_UpdateLeds(mask);
+            Deg_ReportOne(ch);
+        }
     }
 }
